@@ -3,7 +3,7 @@ Define all the force connection structs used in C++ portion of code/
 Note: The struct variable order needs to be identical to the C++ definition.
 """
 # Updated by Saeed Mirazimi
-# June 22, 2016
+# June Jan 17
 # To handle the data structure of the the new force class, BendingForceCurve
 cdef struct elasticforceenergy_data:
     int ForceID
@@ -15,7 +15,7 @@ cdef struct elasticforceenergy_data:
     double L
     double dv
     double ds
-	
+
 cdef struct bendingforcecurve_data_3d:
     int ForceID
     int FCID
@@ -31,7 +31,7 @@ cdef struct bendingforcecurve_data_3d:
     double Kappa
     double dv
     double ds
-	
+
 cdef struct bendingforcecurve_data_2d:
     int ForceID
     int FCID
@@ -47,7 +47,7 @@ cdef struct bendingforcecurve_data_2d:
     double Kappa
     double dv
     double ds
-	
+
 cdef struct bendingforce_data_3d:
     int ForceID
     int FCID
@@ -63,7 +63,7 @@ cdef struct bendingforce_data_3d:
     double A
     double K
     double Omega
-    
+
     double dv
     double ds
 
@@ -82,7 +82,7 @@ cdef struct bendingforce_data_2d:
     double A
     double K
     double Omega
-    
+
     double dv
     double ds
 
@@ -103,7 +103,7 @@ cdef struct elasticforce_tether_2pt_data_3d:
     double L
     double PtInitLoc[3]
     double PtVel[3]
-    
+
 cdef struct elasticforce_tether_osc_stiffness_2pt_data_2d:
     int ForceID
     int FCID

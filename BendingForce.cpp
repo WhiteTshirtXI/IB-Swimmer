@@ -1,5 +1,5 @@
 /**
- * Handles the data structure and force spreading calculations for the 
+ * Handles the data structure and force spreading calculations for the
  * elastic force connections.
  *
  * Boundary Conditions: For PointId < 0, the point is assumed to be fictitious.
@@ -7,21 +7,21 @@
  * NOTE: When adding new force connection, you need to update ../../solvers/cythonlib/IBHelper.pxi
  * to handle conversion from Python Dictionary to C IB Data structure.
  *
- * Author: Jeffrey Wiens
+ * Modified: Saeed Mirazimi, last: Jan 17
  **/
 
 #include "BendingForce.h"
 #include "ImmersedBoundary.h"
 
 namespace IB {
-namespace ForceConnection { 
+namespace ForceConnection {
 
 /**
  * Constructor and Deconstructor for Force Connections
  */
 template <int dim>
 BendingForce<dim>::BendingForce()
-{ 
+{
    // Get Rank and Size
    MPI_Comm_size(PETSC_COMM_WORLD, &size);
    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
@@ -36,7 +36,7 @@ BendingForce<dim>::~BendingForce()
 
 /**
  * Calculate the force density
- * 
+ *
  * Parameters:
  *        pointDict:    	Associate array containing all immersed boundary points.
  *        domain_length:	Length of the entire domain
@@ -126,11 +126,11 @@ PetscErrorCode BendingForce<dim>::CalculateForceDensity(std::unordered_map<int, 
       double r_ds = 1.0/ds;
       double val = it->sigma * r_ds * r_ds;
 
-      // Kludge!!! Bending stiffness is REALLY unstable. Code breaks when 
+      // Kludge!!! Bending stiffness is REALLY unstable. Code breaks when
       // immersed boundary moves through periodic domain. This is "fixed"
       // by using a smaller sigma for points at the edge of the boundary/
       /**
-      for(int i = 0; i < dim; i++) { 
+      for(int i = 0; i < dim; i++) {
           double up_crit = ((domain_length[i])) - ((spatial_stepsize[i]));
           double down_crit = ((spatial_stepsize[i]));
           if( pt->Xh[i] > up_crit || pt->Xh[i] < down_crit ) {
@@ -144,23 +144,23 @@ PetscErrorCode BendingForce<dim>::CalculateForceDensity(std::unordered_map<int, 
       // } else {
       //      for(int i = 0; i < dim; i++) Cl[i] = 0.0;
       // }
-      
+
       // if( lpt!=NULL && l2pt!=NULL ) {
       //      for(int i = 0; i < dim; i++) Clm1[i] = (l2X[i] - 2*lX[i] + pt->Xh[i])*r_ds*r_ds - (it->D2X_LTARGET[i]);
       // } else {
       //      for(int i = 0; i < dim; i++) Clm1[i] = 0.0;
       // }
-      
+
       // if( rpt!=NULL && r2pt!=NULL ) {
       //      for(int i = 0; i < dim; i++) Clp1[i] = (r2X[i] - 2*rX[i] + pt->Xh[i])*r_ds*r_ds - (it->D2X_RTARGET[i]);
       // } else {
       //      for(int i = 0; i < dim; i++) Clp1[i] = 0.0;
-      // }      
+      // }
       double Rdlpt[dim], Ldlpt[dim], Rdpt[dim], Ldpt[dim], Rdrpt[dim], Ldrpt[dim];
 
 
       if(lpt == NULL && l2pt == NULL){
-  
+
 	Point *ptFict = &((*pointDict)[IBsize-1]);
 	Point *lptFict = &((*pointDict)[IBsize-2]);
 	Point *l2ptFict = &((*pointDict)[IBsize-3]);
@@ -175,7 +175,7 @@ PetscErrorCode BendingForce<dim>::CalculateForceDensity(std::unordered_map<int, 
 	for(int i = 0; i < dim; i++){
 	  Rdlpt[i] = (*ptFict).Xh[i] - lXFict[i];
 	  Ldlpt[i] = l2XFict[i] - lXFict[i];
-    
+
 	  Rdpt[i] = rX[i] - (*pt).Xh[i];
 	  Ldpt[i] = lXFict[i] - (*ptFict).Xh[i];
 
@@ -184,7 +184,7 @@ PetscErrorCode BendingForce<dim>::CalculateForceDensity(std::unordered_map<int, 
 	}
 
       }else if(rpt == NULL && r2pt == NULL){
-  
+
 	Point *ptFict = &((*pointDict)[0]);
 	Point *rptFict = &((*pointDict)[1]);
 	Point *r2ptFict = &((*pointDict)[2]);
@@ -199,7 +199,7 @@ PetscErrorCode BendingForce<dim>::CalculateForceDensity(std::unordered_map<int, 
 	for(int i = 0; i < dim; i++){
 	  Rdlpt[i] = (*pt).Xh[i] - lX[i];
 	  Ldlpt[i] = l2X[i] - lX[i];
-    
+
 	  Rdpt[i] = rXFict[i] - (*ptFict).Xh[i];
 	  Ldpt[i] = lX[i] - (*pt).Xh[i];
 
@@ -210,35 +210,35 @@ PetscErrorCode BendingForce<dim>::CalculateForceDensity(std::unordered_map<int, 
 
 	Point *lptFict = &((*pointDict)[IBsize - 1]);
 	Point *l2ptFict = &((*pointDict)[IBsize - 2]);
-	
+
 	double l2XFict[dim];
 
 	for(int i = 0; i < dim; i++){
 	  l2XFict[i] = ibposition( (*l2ptFict).Xh[i], (*lptFict).Xh[i], domain_length[i]);
 	}
-  
+
 	for(int i = 0; i < dim; i++){
 	  Rdlpt[i] = (*pt).Xh[i] - lX[i];
 	  Ldlpt[i] = l2XFict[i] - (*lptFict).Xh[i];
-    
+
 	  Rdpt[i] = rX[i] - (*pt).Xh[i];
 	  Ldpt[i] = lX[i] - (*pt).Xh[i];
 
 	  Rdrpt[i] = r2X[i] - rX[i];
 	  Ldrpt[i] = (*pt).Xh[i] - rX[i];
 	}
-  
+
       }else if(rpt != NULL && r2pt == NULL){
 
 	Point *rptFict = &((*pointDict)[0]);
 	Point *r2ptFict = &((*pointDict)[1]);
 
 	double r2XFict[dim];
-  
+
 	for(int i = 0; i < dim; i++){
 	  Rdlpt[i] = (*pt).Xh[i] - lX[i];
 	  Ldlpt[i] = l2X[i] - lX[i];
-    
+
 	  Rdpt[i] = rX[i] - (*pt).Xh[i];
 	  Ldpt[i] = lX[i] - (*pt).Xh[i];
 
@@ -247,18 +247,18 @@ PetscErrorCode BendingForce<dim>::CalculateForceDensity(std::unordered_map<int, 
 	}
 
       }else{
-  
+
 	for(int i = 0; i < dim; i++){
 	  Rdlpt[i] = (*pt).Xh[i] - lX[i];
 	  Ldlpt[i] = l2X[i] - lX[i];
-    
+
 	  Rdpt[i] = rX[i] - (*pt).Xh[i];
 	  Ldpt[i] = lX[i] - (*pt).Xh[i];
 
 	  Rdrpt[i] = r2X[i] - rX[i];
 	  Ldrpt[i] = (*pt).Xh[i] - rX[i];
 	}
-  
+
       }
        for(int i = 0; i < dim; i++) Cl[i] = (Rdpt[i] + Ldpt[i])*r_ds*r_ds - (it->D2X_TARGET[i]);
        for(int i = 0; i < dim; i++) Clm1[i] = (Rdlpt[i] + Ldlpt[i])*r_ds*r_ds - (it->D2X_LTARGET[i]);
@@ -269,13 +269,13 @@ PetscErrorCode BendingForce<dim>::CalculateForceDensity(std::unordered_map<int, 
        printf("Index: %d, ",(*it)->PointID );
        printf("Rdpt : (%f,%f), Ldpt : (%f,%f), Rdlpt : (%f,%f), Ldlpt : (%f,%f), Rdrpt: (%f,%f), Cl : (%f,%f), Clm: (%f,%f), Clp : (%f,%f), ForceDensity : (%f,%f) \n ", Rdpt[0], Rdpt[1], Ldpt[0],Ldpt[1], Rdlpt[0] ,Rdlpt[1], Ldlpt[0],Ldlpt[1], Rdrpt[0], Rdrpt[1], Cl[0], Cl[1], Clm[0], Clm[1], Clp[0], Clp[1], ForceDensity[0], ForceDensity[1] );
 
-		 
-       
+
+
 
       // if( (*it).PointID == 100) printf("Bending: %e %e (%e %e %e) (%e %e %e %e %e)\n",ForceDensity[1], time, Clm1[1], Clp1[1], Cl[1], (*pt).Xh[1], lX[1], rX[1], l2X[1], r2X[1]);
       // if( (*it).PointID == 0) printf("%d (%e %e) (%e %e) (%e %e) (%e %e) \n", (*it).PointID, ForceDensity[0], ForceDensity[1], Clm1[0], Clm1[1], Cl[0], Cl[1], Clp1[0], Clp1[1]);
       // if( (*it).PointID == 1) printf("%d (%e %e) (%e %e) (%e %e) (%e %e) \n", (*it).PointID, ForceDensity[0], ForceDensity[1], Clm1[0], Clm1[1], Cl[0], Cl[1], Clp1[0], Clp1[1]);
-       
+
       for(int i = 0; i < dim; i++) pt->ForceDensity[i] += ForceDensity[i];
    }
 
@@ -284,11 +284,11 @@ PetscErrorCode BendingForce<dim>::CalculateForceDensity(std::unordered_map<int, 
 
 /**
  * Add force connection to appriopriate data structures.
- * 
+ *
  * Parameters:
  *        pointDict: List of immersed boundary points.
  *        buffer: Buffer filled with all the force connections. The buffer is of
- *                      type int, so they need to be cast to correct struct type. 
+ *                      type int, so they need to be cast to correct struct type.
  *        i: current index of the buffer. move index after pulling data.
  *        exclude_not_in_domain: Flag determining if the point should be excluded if it
  *                                isn't in the proc's domain.
@@ -298,10 +298,10 @@ PetscErrorCode BendingForce<dim>::AddLocalIBForceConnections(std::unordered_map<
 {
    bendingforce_data force = *((bendingforce_data *) &(buffer[*i]) );
 
-   if( force_lookup.find(force.FCID) == force_lookup.end() && 
-         ( exclude_not_in_domain == 0 || 
-               (pointDict->find(force.PointID) != pointDict->end() && (*pointDict)[force.PointID].I == IB::IBPOINT_INDOMIAN) 
-         ) 
+   if( force_lookup.find(force.FCID) == force_lookup.end() &&
+         ( exclude_not_in_domain == 0 ||
+               (pointDict->find(force.PointID) != pointDict->end() && (*pointDict)[force.PointID].I == IB::IBPOINT_INDOMIAN)
+         )
       )
    {
       force_connections.push_back(force);
@@ -309,7 +309,7 @@ PetscErrorCode BendingForce<dim>::AddLocalIBForceConnections(std::unordered_map<
    }
 
    *i += sizeof(bendingforce_data)/sizeof(int);
-   
+
    return 0;
 }
 
@@ -326,19 +326,19 @@ PetscErrorCode BendingForce<dim>::CleanDataNotInDomain(std::unordered_map<int, P
 
 template <int dim>
 bool BendingForce<dim>::CleanupForceConnections(const bendingforce_data_template<dim> fc, void **params)
-{  
+{
    std::unordered_map<int, Point > *pointDict = (std::unordered_map<int, Point > *) params[0];
    std::unordered_map<int, int > *force_lookup =  (std::unordered_map<int, int > *) params[1];
-   
+
    bool missing_points = pointDict->count(fc.PointID) == 0;
    if( missing_points ) force_lookup->erase( fc.FCID );
-   
+
    return missing_points;
 }
-   
+
 /**
  * Distributed Force Connections and IB Points
- */  
+ */
 template <int dim>
 PetscErrorCode BendingForce<dim>::DistributeIBPoints(IBPoints *ib, std::unordered_map<int, Point > *pointDict, const int dir, std::unordered_map<int, int > *distribute_points, std::vector< int > *output_buffer, std::vector< int > *force_output_buffer)
 {
@@ -353,7 +353,7 @@ PetscErrorCode BendingForce<dim>::DistributeIBPoints(IBPoints *ib, std::unordere
       int send2 = ib->DisributeToNeighbour(dir, ((*pointDict)[(*it).PointID]).Xh );
       if ( send == IB::IBDISTRIBUTE_SENDFORCEANDIB || send2 == IB::IBDISTRIBUTE_SENDFORCEANDIB) send = IB::IBDISTRIBUTE_SENDFORCEANDIB;
       else if ( send == IB::IBDISTRIBUTE_SENDIB || send2 == IB::IBDISTRIBUTE_SENDIB) send = IB::IBDISTRIBUTE_SENDIB;
-           
+
       // Add IB point to buffer
       if ( send == IB::IBDISTRIBUTE_SENDIB ||  send == IB::IBDISTRIBUTE_SENDFORCEANDIB)
       {

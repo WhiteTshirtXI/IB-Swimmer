@@ -1,7 +1,7 @@
 /**
  * Evolves immersed boundary, handles force spreading, and distributes data across processes.
  * Author: Jeffrey Wiens
- * Updated by Saeed June 30, 2016
+ * Updated by Saeed Jan 17
  **/
 
 
@@ -61,7 +61,7 @@ namespace IB
   const int FORCE_CONNECTION_ELASTIC_ENERGY = 13;
 
   // Identifies different Force Connections
-  const int IBPOINT_AND_FORCECONNECTION_DIVIDER = -1;  
+  const int IBPOINT_AND_FORCECONNECTION_DIVIDER = -1;
 
   const int IBDISTRIBUTE_NOTHING = 0;
   const int IBDISTRIBUTE_SENDIB = 1;
@@ -84,11 +84,11 @@ namespace IB
        double dt;
 
        // Constructor
-       ImmersedBoundary(); 
+       ImmersedBoundary();
 
        // Deconstructor
        ~ImmersedBoundary();
-    
+
        // Initialize
        PetscErrorCode Initialize( std::vector<int> point_buffer, std::vector<int> force_buffer, DM *da_vector, double *h, double *domain_length, PetscInt _delta_span, double _dt );
 
@@ -131,7 +131,7 @@ namespace IB
 
        FC_Map fcDict;
        std::unordered_map<int, Point > pointDict;
-       
+
        std::vector< int > output_buffer;
        std::vector< std::vector<int> > input_buffer;
        std::vector< int > force_output_buffer;

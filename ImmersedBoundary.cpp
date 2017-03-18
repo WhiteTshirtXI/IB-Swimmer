@@ -1,7 +1,7 @@
 /**
  * Evolves immersed boundary, handles force spreading, and distributes data across processes.
  * Author: Jeffrey Wiens
- *Updated by Saeed June30, 2016
+ *Updated by Saeed Jan 17
  **/
 
 #include "ImmersedBoundary.h"
@@ -13,7 +13,7 @@ namespace IB {
  */
 template <int dim>
 ImmersedBoundary<dim>::ImmersedBoundary()
-{ 
+{
    output_buffer.reserve( 400*sizeof(NetworkPoint)/sizeof(int) );
    force_output_buffer.reserve( 200*sizeof(IB::ForceConnection::elasticforce_data)/sizeof(int) );
 
@@ -31,17 +31,17 @@ ImmersedBoundary<dim>::ImmersedBoundary()
    PetscLogEventRegister("IB:DistributeIB", 0 , &IB_DISTRIBUTE);
    PetscLogEventRegister("IB:Cleanup", 0 , &IB_CLEANUP);
    PetscLogEventRegister("IB:OutputData", 0 , &IB_OUTPUT);
-   
+
    // Add Force Connections
    fcDict[FORCE_CONNECTION_ELASTIC] = new IB::ForceConnection::ElasticForce<dim>();
-   fcDict[FORCE_CONNECTION_ELASTIC_TWOPOINT] = new IB::ForceConnection::ElasticForceTwoPoint<dim>(); 
+   fcDict[FORCE_CONNECTION_ELASTIC_TWOPOINT] = new IB::ForceConnection::ElasticForceTwoPoint<dim>();
    fcDict[FORCE_CONNECTION_BENDING] = new IB::ForceConnection::BendingForce<dim>();
    fcDict[FORCE_CONNECTION_ELASTIC_OSCILLATINGSTIFFNESS] = new IB::ForceConnection::ElasticForceOscillatingStiffness<dim>();
    fcDict[FORCE_CONNECTION_ELASTIC_OSCILLATINGLENGTH] = new IB::ForceConnection::ElasticForceOscillatingLength<dim>();
    fcDict[FORCE_CONNECTION_ELASTIC_OSCILLATINGSTIFFNESS_TWOPOINT] = new IB::ForceConnection::ElasticForceOscillatingStiffnessTwoPoint<dim>();
-   fcDict[FORCE_CONNECTION_ELASTIC_OSCILLATINGLENGTH_TWOPOINT] = new IB::ForceConnection::ElasticForceOscillatingLengthTwoPoint<dim>();   
-   fcDict[FORCE_CONNECTION_ELASTIC_TETHER_TWOPOINT] = new IB::ForceConnection::ElasticForceTetherTwoPoint<dim>(); 
-   fcDict[FORCE_CONNECTION_ELASTIC_TETHER_OSCILLATINGSTIFFNESS_TWOPOINT] = new IB::ForceConnection::ElasticForceTetherOscillatingStiffnessTwoPoint<dim>(); 
+   fcDict[FORCE_CONNECTION_ELASTIC_OSCILLATINGLENGTH_TWOPOINT] = new IB::ForceConnection::ElasticForceOscillatingLengthTwoPoint<dim>();
+   fcDict[FORCE_CONNECTION_ELASTIC_TETHER_TWOPOINT] = new IB::ForceConnection::ElasticForceTetherTwoPoint<dim>();
+   fcDict[FORCE_CONNECTION_ELASTIC_TETHER_OSCILLATINGSTIFFNESS_TWOPOINT] = new IB::ForceConnection::ElasticForceTetherOscillatingStiffnessTwoPoint<dim>();
    fcDict[FORCE_CONNECTION_PENALTYMASS] = new IB::ForceConnection::PenaltyMass<dim>();
    fcDict[FORCE_CONNECTION_FORCEPULSE_TWOPOINT] = new IB::ForceConnection::ForcePulseTwoPoint<dim>();
    //added by Saeed
@@ -70,7 +70,7 @@ ImmersedBoundary<dim>::~ImmersedBoundary()
 
 /**
  * Initialize Immersed Boundary
- * 
+ *
  * Parameters:
  *        point_buffer: Buffer filled with all the immersed boundary points. The buffer is of
  *                      type int, so they need to be cast to correct struct type. Also, points
@@ -78,7 +78,7 @@ ImmersedBoundary<dim>::~ImmersedBoundary()
  *        force_buffer: Buffer filled with all the force connections. The buffer is of
  *                      type int, so they need to be cast to correct struct type. Also, points
  *                      not in the domain need to be thrown out.
- *        da_vector:    The DA used for fluid variables, used to obtain boundary of cartesian 
+ *        da_vector:    The DA used for fluid variables, used to obtain boundary of cartesian
  *                      grid owned by process.
  *        h:            Spatial step size in each dimension.
  *        domain_length: Domain length
@@ -110,11 +110,11 @@ PetscErrorCode ImmersedBoundary<dim>::Initialize( std::vector<int> point_buffer,
    ierr = DMDAGetCorners(*da_vector, &is, &js, &ks, &im, &jm, &km); CHKERRQ(ierr);
 
    // Domain owned by Processor (xstart <= x < xend)
-   xstart[0] = is*h[0]; 
+   xstart[0] = is*h[0];
    xstart[1] = js*h[1];
    if( dim == 3) xstart[2] = ks*h[2];
 
-   xend[0] = (is+im)*h[0]; 
+   xend[0] = (is+im)*h[0];
    xend[1] = (js+jm)*h[1];
    if( dim == 3) xend[2] = (ks+km)*h[2];
 
@@ -123,11 +123,11 @@ PetscErrorCode ImmersedBoundary<dim>::Initialize( std::vector<int> point_buffer,
    // (xghoststart <= x <= xinsideghoststart OR xinsideghostend <= x <= xghostend)
    ierr = DMDAGetGhostCorners(*da_vector, &is, &js, &ks, &im, &jm, &km); CHKERRQ(ierr);
 
-   xghoststart[0] = is*h[0]; 
+   xghoststart[0] = is*h[0];
    xghoststart[1] = js*h[1];
    if( dim == 3) xghoststart[2] = ks*h[2];
 
-   xghostend[0] = (is+im)*h[0]; 
+   xghostend[0] = (is+im)*h[0];
    xghostend[1] = (js+jm)*h[1];
    if( dim == 3) xghostend[2] = (ks+km)*h[2];
 
@@ -142,7 +142,7 @@ PetscErrorCode ImmersedBoundary<dim>::Initialize( std::vector<int> point_buffer,
    xinsideghostend[1] = xend[1] - (xstart[1] - xghoststart[1]);
    if( dim == 3 ) xinsideghostend[2] = xend[2] - (xstart[2] - xghoststart[2]);
 
-   // Extended Ghost cell region inside the processor's domain 
+   // Extended Ghost cell region inside the processor's domain
    // (xstart < xinsideghoststart < extended_xinsideghoststart <= x < extended_xinsideghostend < xinsideghostend < xend)
    // IB points (NO FORCE CONNECTIONS) in this region get copied to adjacent processors.
    // This ensures that IB points aren't missing when calculating the force density.
@@ -175,7 +175,7 @@ PetscErrorCode ImmersedBoundary<dim>::Initialize( std::vector<int> point_buffer,
 
 /**
  * Update the position of all immersed boundary points.
- * 
+ *
  * Parameters:
  *        da_vector:    The distributed array that contains info on fluid velocity field
  *        Umac:         The fluid velocity field
@@ -196,7 +196,7 @@ PetscErrorCode ImmersedBoundary<dim>::UpdateIBPosition(const DM *da_vector, cons
    double delta_val[6];
    double inv_dx[dim];
    double delta_param[dim];
-   
+
    PetscLogEventBegin(IB_UPDATEIBPOSITION, 0, 0, 0, 0);
 
    index_start[2] = 0;
@@ -225,7 +225,7 @@ PetscErrorCode ImmersedBoundary<dim>::UpdateIBPosition(const DM *da_vector, cons
        {
        	  // Compute portion of parameter used in discrete delta function
           delta_param[i] = (X[i])*inv_dx[i];
-          
+
           // Interpolate the fluid velocity onto the immersed boundary point
           index_start[i] = floor( inv_dx[i]*X[i] - .5*delta_span );
           index_end[i] = index_start[i] + delta_span;
@@ -246,7 +246,7 @@ PetscErrorCode ImmersedBoundary<dim>::UpdateIBPosition(const DM *da_vector, cons
                {
                    delta_val[0] = phi( i - delta_param[0] );
                    delta_val[3] = phi( i+.5 - delta_param[0] );
-                   
+
                    Unew[0] += array_Umac[k][j][i][0]*delta_val[0]*delta_val[4]*delta_val[5];
                    Unew[1] += array_Umac[k][j][i][1]*delta_val[1]*delta_val[3]*delta_val[5];
                    if(dim==3) Unew[2] += array_Umac[k][j][i][2]*delta_val[2]*delta_val[3]*delta_val[4];
@@ -291,7 +291,7 @@ PetscErrorCode ImmersedBoundary<dim>::UpdateIBPosition(const DM *da_vector, cons
 
 /**
  * Calculate the force density and Spread onto Cartesian Grid
- * 
+ *
  * Parameters:
  *        da_vector:    The distributed array that contains info on external force field
  *        F:            The external force field
@@ -311,15 +311,15 @@ PetscErrorCode ImmersedBoundary<dim>::SpreadForce(DM *da_vector, Vec *F, const d
    double delta_val[6];
    double inv_dx[dim];
    double inv_dv = 1.0;
-   
+
    for(int i = 0; i < dim; i++)
    {
       inv_dx[i] = 1.0/spatial_stepsize[i];
       inv_dv = inv_dv*inv_dx[i];
    }
-   
+
    // Calculate Force Density
-   PetscLogEventBegin(IB_FORCEDENSITY, 0, 0, 0, 0);   
+   PetscLogEventBegin(IB_FORCEDENSITY, 0, 0, 0, 0);
    for (FC_Iterator it = fcDict.begin(); it != fcDict.end();it++)
    {
        ierr = (it->second)->CalculateForceDensity(&pointDict, &domain_length[0], &spatial_stepsize[0], dt, time); CHKERRQ(ierr);
@@ -356,7 +356,7 @@ PetscErrorCode ImmersedBoundary<dim>::SpreadForce(DM *da_vector, Vec *F, const d
        {
            if( dim == 2){k = kk; delta_val[2] = 1.0; delta_val[5] = 1.0;}
            else {
-              k = (index_start[2] + kk)%spatial_gridsize[2]; 
+              k = (index_start[2] + kk)%spatial_gridsize[2];
               kDist = ibdistance( k*spatial_stepsize[2], pt->Xh[2], domain_length[2]);
               delta_val[2] = phi( kDist*inv_dx[2] );
               delta_val[5] = phi( (.5*spatial_stepsize[2] + kDist)*inv_dx[2] );
@@ -365,21 +365,21 @@ PetscErrorCode ImmersedBoundary<dim>::SpreadForce(DM *da_vector, Vec *F, const d
 
            for(int jj = 0; jj <= delta_span; jj++)
            {
-              j = (index_start[1] + jj)%spatial_gridsize[1]; 
+              j = (index_start[1] + jj)%spatial_gridsize[1];
               jDist = ibdistance( j*spatial_stepsize[1], pt->Xh[1], domain_length[1]);
               delta_val[1] = phi( jDist*inv_dx[1] );
-              delta_val[4] = phi( (.5*spatial_stepsize[1] + jDist)*inv_dx[1] ); 
-              
+              delta_val[4] = phi( (.5*spatial_stepsize[1] + jDist)*inv_dx[1] );
+
               for(int ii = 0; ii <= delta_span; ii++)
               {
-                   i = (index_start[0] + ii)%spatial_gridsize[0]; 
-                   
-                   if( (k >= ks && k < ks+km) && (j >= js && j < js+jm) && (i >= is && i < is+im)) 
+                   i = (index_start[0] + ii)%spatial_gridsize[0];
+
+                   if( (k >= ks && k < ks+km) && (j >= js && j < js+jm) && (i >= is && i < is+im))
                    {
                       iDist = ibdistance( i*spatial_stepsize[0], pt->Xh[0], domain_length[0]);
                       delta_val[0] = phi( iDist*inv_dx[0] );
-                      delta_val[3] = phi( (.5*spatial_stepsize[0] + iDist)*inv_dx[0] );     
-                        
+                      delta_val[3] = phi( (.5*spatial_stepsize[0] + iDist)*inv_dx[0] );
+
                       array_Fmac[k][j][i][0] += pt->ForceDensity[0]*delta_val[0]*delta_val[4]*delta_val[5]*inv_dv*magnify_force;
                       array_Fmac[k][j][i][1] += pt->ForceDensity[1]*delta_val[1]*delta_val[3]*delta_val[5]*inv_dv*magnify_force;
                       if( dim==3 ) array_Fmac[k][j][i][2] += pt->ForceDensity[2]*delta_val[2]*delta_val[3]*delta_val[4]*inv_dv*magnify_force;
@@ -408,12 +408,12 @@ PetscErrorCode ImmersedBoundary<dim>::SpreadForce(DM *da_vector, Vec *F, const d
 
 
 /**
- * Add immersed boundary points to data structure. Update flags indicating where on the domain 
+ * Add immersed boundary points to data structure. Update flags indicating where on the domain
  * the point lies.
- * 
+ *
  * Parameters:
  *        buffer: Buffer filled with all the immersed boundary points. The buffer is of
- *                      type int, so they need to be cast to correct struct type. 
+ *                      type int, so they need to be cast to correct struct type.
  *        buffer_length: Length of the buffer.
  *        last_index: The index of the last data point that was read. The buffer may contain force connections.
  *                    The function will stop when the force connections are reached.
@@ -428,7 +428,7 @@ PetscErrorCode ImmersedBoundary<dim>::AddLocalIBPoints( const int *buffer, const
    {
       // Retrieve Point
       NetworkPoint network_pt = *((NetworkPoint *) &(buffer[i]) );
-     
+
       // Load Point
       Point pt;
       pt.PointID = network_pt.PointID;
@@ -450,13 +450,13 @@ PetscErrorCode ImmersedBoundary<dim>::AddLocalIBPoints( const int *buffer, const
       if(dim == 3) pt.Xh[2] = ( fabs(pt.Xh[2]) < 1e-10 ? 0.0 : pt.Xh[2] );
 
       // Enforce that IB point resides in the domain
-      pt.X[0] = ibposition( pt.X[0], (xstart[0]+xend[0])/2, domain_length[0]); 
-      pt.X[1] = ibposition( pt.X[1], (xstart[1]+xend[1])/2, domain_length[1]); 
-      if(dim == 3) pt.X[2] =ibposition( pt.X[2], (xstart[2]+xend[2])/2, domain_length[2]); 
+      pt.X[0] = ibposition( pt.X[0], (xstart[0]+xend[0])/2, domain_length[0]);
+      pt.X[1] = ibposition( pt.X[1], (xstart[1]+xend[1])/2, domain_length[1]);
+      if(dim == 3) pt.X[2] =ibposition( pt.X[2], (xstart[2]+xend[2])/2, domain_length[2]);
 
-      pt.Xh[0] = ibposition( pt.Xh[0], (xstart[0]+xend[0])/2, domain_length[0]); 
-      pt.Xh[1] = ibposition( pt.Xh[1], (xstart[1]+xend[1])/2, domain_length[1]); 
-      if(dim == 3) pt.Xh[2] =ibposition( pt.Xh[2], (xstart[2]+xend[2])/2, domain_length[2]); 
+      pt.Xh[0] = ibposition( pt.Xh[0], (xstart[0]+xend[0])/2, domain_length[0]);
+      pt.Xh[1] = ibposition( pt.Xh[1], (xstart[1]+xend[1])/2, domain_length[1]);
+      if(dim == 3) pt.Xh[2] =ibposition( pt.Xh[2], (xstart[2]+xend[2])/2, domain_length[2]);
 
       // Update IB flags
       ierr = SetIBPointDomainFlags(&pt); CHKERRQ(ierr);
@@ -475,10 +475,10 @@ PetscErrorCode ImmersedBoundary<dim>::AddLocalIBPoints( const int *buffer, const
 
 /**
  * Add force connection to appriopriate data structures.
- * 
+ *
  * Parameters:
  *        buffer: Buffer filled with all the force connections. The buffer is of
- *                      type int, so they need to be cast to correct struct type. 
+ *                      type int, so they need to be cast to correct struct type.
  *        buffer_length: Length of the buffer.
  *        exclude_not_in_domain: Flag determining if the point should be excluded if it
  *                                isn't in the proc's domain.
@@ -503,7 +503,7 @@ PetscErrorCode ImmersedBoundary<dim>::AddLocalIBForceConnections( const int *buf
 
 /**
  * Sets flags indicating if the point resides in our outside the processors domain
- * 
+ *
  * Parameters:
  *        pt: Immersed boundary point
  */
@@ -514,20 +514,20 @@ PetscErrorCode ImmersedBoundary<dim>::SetIBPointDomainFlags(Point *pt)
    // Note, these "updated" points are only used in a few locations
    double X[3];
    double Xh[3];
-   for(unsigned int i=0; i<dim;i++) 
+   for(unsigned int i=0; i<dim;i++)
    {
-       X[i] = ibposition( pt->X[i], .5*(xstart[i]+xend[i]), domain_length[i]); 
-       Xh[i] = ibposition( pt->Xh[i], .5*(xstart[i]+xend[i]), domain_length[i]); 
+       X[i] = ibposition( pt->X[i], .5*(xstart[i]+xend[i]), domain_length[i]);
+       Xh[i] = ibposition( pt->Xh[i], .5*(xstart[i]+xend[i]), domain_length[i]);
    }
 
    pt->I = IBPOINT_OUTSIDEDOMIAN;
-   if(xstart[0] <= pt->X[0] && xend[0] > pt->X[0] && xstart[1] <= pt->X[1] && xend[1] > pt->X[1] && 
-        (dim==2 || (xstart[2] <= pt->X[2] && xend[2] > pt->X[2])) ) 
+   if(xstart[0] <= pt->X[0] && xend[0] > pt->X[0] && xstart[1] <= pt->X[1] && xend[1] > pt->X[1] &&
+        (dim==2 || (xstart[2] <= pt->X[2] && xend[2] > pt->X[2])) )
    {
       pt->I = IBPOINT_INDOMIAN;
    }
    else if(xghoststart[0] <= X[0] && xghostend[0] > X[0] && xghoststart[1] <= X[1] && xghostend[1] > X[1] &&
-             (dim==2 || (xghoststart[2] <= X[2] && xghostend[2] > X[2])) ) 
+             (dim==2 || (xghoststart[2] <= X[2] && xghostend[2] > X[2])) )
    {
       pt->I = IBPOINT_INGHOSTDOMIAN;
    }
@@ -539,7 +539,7 @@ PetscErrorCode ImmersedBoundary<dim>::SetIBPointDomainFlags(Point *pt)
       pt->Ih = IBPOINT_INDOMIAN;
    }
    else if(xghoststart[0] <= Xh[0] && xghostend[0] > Xh[0] && xghoststart[1] <= Xh[1] && xghostend[1] > Xh[1] &&
-              (dim==2 || (xghoststart[2] <= Xh[2] && xghostend[2] > Xh[2])) ) 
+              (dim==2 || (xghoststart[2] <= Xh[2] && xghostend[2] > Xh[2])) )
    {
       pt->Ih = IBPOINT_INGHOSTDOMIAN;
    }
@@ -582,14 +582,14 @@ PetscErrorCode ImmersedBoundary<dim>::DistributeIBPoints(DM *da_vector)
 
         ierr = PetscUtil::SendToNeighbour(dir, *da_vector, &senders_buffer_size, 1, &recvers_buffer_size, 2, &input_size[dir]); CHKERRQ(ierr);
         if( recvers_buffer_size >=  input_buffer[dir].capacity()) input_buffer[dir].reserve( recvers_buffer_size+1 );
-        
+
         ierr = PetscUtil::SendToNeighbour(dir, *da_vector, &output_buffer[0], senders_buffer_size, &input_buffer[dir][0], input_buffer[dir].capacity(), &input_size[dir]); CHKERRQ(ierr);
     }
 
     // Move input buffers into IB data structures
     for(int dir = 0; dir < max_dir; dir++)
     {
-        if( input_size[dir] > 0 ) 
+        if( input_size[dir] > 0 )
         {
             int last_index;
 
@@ -612,7 +612,7 @@ PetscErrorCode ImmersedBoundary<dim>::DistributeIBPoints(DM *da_vector)
 
 /**
  * Clean points and force connections not in the domain
- * 
+ *
  * Parameters:
  *        keep_nextstep_points: Keep the IB points pt->Xh that are in the domain (keep_nextstep_points=1 uses pt->Ih, keep_nextstep_points=0 uses pt->I )
  */
@@ -661,7 +661,7 @@ PetscErrorCode ImmersedBoundary<dim>::OutputIBVar(IO::OutputHDF5 *logger, DM *da
 
    int ib_count = pointDict.size();
    ierr = MPI_Allgather(&ib_count, 1, MPIU_INT, lvector, 1, MPIU_INT, PETSC_COMM_WORLD);CHKERRQ(ierr);
-   
+
    int move_values = 0;
    for(int i = 0; i< size; i++) {
       lx[i] = lvector[i];
@@ -670,7 +670,7 @@ PetscErrorCode ImmersedBoundary<dim>::OutputIBVar(IO::OutputHDF5 *logger, DM *da
          lvector[i] = 1;
       }
    }
-   
+
    if( move_values > 0 ) {
       for(int i = 0; i< size; i++) {
          if( lvector[i] > move_values) {
@@ -680,7 +680,7 @@ PetscErrorCode ImmersedBoundary<dim>::OutputIBVar(IO::OutputHDF5 *logger, DM *da
          }
       }
    }
-   
+
    ierr = DMDACreate1d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, Util::Sum(lvector, size), dim, 0, lvector, &ib_da1);
    ierr = DMDACreate1d(PETSC_COMM_WORLD, DMDA_BOUNDARY_NONE, Util::Sum(lvector, size), 1, 0, lvector, &ib_da2);
 
@@ -767,7 +767,7 @@ PetscErrorCode ImmersedBoundary<2>::ConstructOmega(DM *da, Vec *Omega)
        index_end[1] = index_start[1] + 1;
        if( index_start[1] < js) index_start[1] = js;
        if( index_end[1] > js+jm-1) index_end[1] = js+jm-1;
-   
+
        for(int i = index_start[0]; i <= index_end[0]; i++)
        {
            for(int j = index_start[1]; j <= index_end[1]; j++)
@@ -807,10 +807,10 @@ PetscErrorCode ImmersedBoundary<3>::ConstructOmega(DM *da, Vec *Omega)
        if( index_end[1] > js+jm-1) index_end[1] = js+jm-1;
 
        index_start[2] = floor( (*pt).Xh[2]/spatial_stepsize[2] - 1 );
-       index_end[2] = index_start[2] + 1;   
+       index_end[2] = index_start[2] + 1;
        if( index_start[2] < ks) index_start[2] = ks;
        if( index_end[2] > ks+km-1) index_end[2] = ks+km-1;
-   
+
        for(int i = index_start[0]; i <= index_end[0]; i++)
        {
            for(int j = index_start[1]; j <= index_end[1]; j++)
@@ -878,11 +878,11 @@ double inline phi( const double r)
 }
 
 /**
- * Determine whether IB point and/or force point should be distributed to a 
+ * Determine whether IB point and/or force point should be distributed to a
  * particular neighbouring node.
  *
  * Parameters:
- *        dir: Integer representing the direction of neighbour. 
+ *        dir: Integer representing the direction of neighbour.
  *             The number corresponds to the output of petsc's DMDAGetNeighbors.
  *        X: The location of the immersed boundary point.
  */

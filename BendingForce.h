@@ -1,13 +1,13 @@
 /**
- * Handles the data structure and force spreading calculations for the 
+ * Handles the data structure and force spreading calculations for the
  * bending force connections.
  *
- * Boundary Conditions: For PointId < 0, the point is assumed to be fictitious. 
+ * Boundary Conditions: For PointId < 0, the point is assumed to be fictitious.
  *
  * NOTE: When adding new force connection, you need to update ../../solvers/cythonlib/IBHelper.pxi
  * to handle conversion from Python Dictionary to C IB Data structure.
  *
- * Author: Jeffrey Wiens
+ * Modified: Saeed Mirazimi, Jan 17
  **/
 
 
@@ -41,7 +41,7 @@ namespace IB
 
    namespace ForceConnection
    {
-   
+
       template <int dim>
       struct bendingforce_data_template
       {
@@ -54,15 +54,15 @@ namespace IB
          int PointID;
          double sigma;
          //double D2X_TARGET[dim];
-         //double D2X_LTARGET[dim];   
+         //double D2X_LTARGET[dim];
          //double D2X_RTARGET[dim];
 	double A;
 	double K;
 	double Omega;
          double dv;
          double ds;
-      } ;      
-       
+      } ;
+
       template <int dim>
       class BendingForce : public IForceConnection<dim>
       {
@@ -73,14 +73,14 @@ namespace IB
             typedef bendingforce_data_template<dim> bendingforce_data;
             PetscErrorCode ierr;
             PetscMPIInt size,rank;
-                
+
          public:
             // Constructor
-            BendingForce(); 
+            BendingForce();
 
             // Deconstructor
             ~BendingForce();
-    
+
             // Distribute Immersed Boundary Points and Force Connections
             PetscErrorCode DistributeIBPoints(IBPoints *ib, std::unordered_map<int, Point > *pointDict, const int dir, std::unordered_map<int, int > *distribute_points, std::vector< int > *output_buffer, std::vector< int > *force_output_buffer);
 
@@ -90,7 +90,7 @@ namespace IB
             // Clean Immersed Boundary Points and Force Connections Not in the Domain
             PetscErrorCode CleanDataNotInDomain(std::unordered_map<int, Point > *pointDict);
             static bool CleanupForceConnections(const bendingforce_data_template<dim> fc, void **params);
-            
+
             // Add Force Connections
             PetscErrorCode AddLocalIBForceConnections(std::unordered_map<int, Point > *pointDict, const int *buffer, int *i, const int exclude_not_in_domain  );
 
